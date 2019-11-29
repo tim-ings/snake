@@ -1,0 +1,252 @@
+<html>
+
+<canvas id="gfx" width="800" height="800"></canvas>
+
+<script>
+
+// get the canvas
+const canvas = document.getElementById("gfx");
+const ctx = canvas.getContext("2d");
+
+const updateInterval = 250;
+const boardDimX = 16;
+const boardDimY = 9;
+let tileDim = 20;
+
+// make the board
+const board = new Array(boardDimY);
+for (let i = 0; i < boardDimY; i++) {
+    board[i] = new Array(boardDimX);
+}
+
+const snake = {
+    head: { 
+        x: 0, 
+        y: 0,
+    },
+    tail: [],
+    direction: "e",
+    color: "black",
+}
+
+const food = {
+    x: 0,
+    y: 0,
+}
+
+function resetGame() {
+    snake.head.x = 5;
+    snake.head.y = 5;
+    snake.tail = [
+        {
+            x: 4,
+            y: 5,
+        },
+        {
+            x: 3,
+            y: 5,
+        },
+        {
+            x: 2,
+            y: 5,
+        },
+        {
+            x: 1,
+            y: 5,
+        },
+    ];
+    snake.direction = "e";
+    snake.color = "black";
+
+    resetFood();
+}
+
+// checks if the given point is inside the snake
+function insideSnake(x, y, includeHead=true) {
+    if (includeHead && x === snake.head.x && y === snake.head.y) {
+        return true;
+    }
+    for (let i = 0; i < snake.tail.length - 1; i++) {
+        if (x === snake.tail[i].x &&
+            y === snake.tail[i].y) {
+            console.log("self collision!");
+            return true;
+        }
+    }
+    return false;
+}
+
+// moves the snake, tail follows the head
+function updateSnakeMovement() {
+    // shift the tail
+    for (let i = snake.tail.length - 1; i > 0; i--) {
+        let cur = snake.tail[i];
+        let next = snake.tail[i - 1];
+        cur.x = next.x;
+        cur.y = next.y;
+    }
+    snake.tail[0].x = snake.head.x;
+    snake.tail[0].y = snake.head.y;
+    
+    // move the head
+    switch (snake.direction) {
+        case "n": 
+            snake.head.y--;
+            break;
+        case "s":
+            snake.head.y++;
+            break;
+        case "e": 
+            snake.head.x++;
+            break;
+        case "w": 
+            snake.head.x--;
+            break;
+    }
+}
+
+// gets a random int between min and max inclusive
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// adds a tile to the snakes tail
+function growSnake() {
+    const tailEnd = snake.tail[snake.tail.length - 1];
+    snake.tail.push({
+        x: tailEnd.x,
+        y: tailEnd.y,
+    });
+}
+
+// resets the food position
+function resetFood() {
+    do {
+        food.x = getRandomInt(0, boardDimX - 1);
+        food.y = getRandomInt(0, boardDimY - 1);
+    } while (insideSnake(food.x, food.y))
+}
+
+// checks if the snakes head has eaten the food
+function hasEaten() {
+    return snake.head.x === food.x && snake.head.y === food.y;
+}
+
+// checks if the snake has died. checks for bounds and collision with tail
+function hasDied() {
+    // bounds
+    if (snake.head.x >= boardDimX ||
+        snake.head.y >= boardDimY ||
+        snake.head.x < 0 ||
+        snake.head.y < 0) {
+        console.log("out of bounds!");
+        return true;
+    }
+    // self
+    for (let i = 0; i < snake.tail.length - 1; i++) {
+        if (insideSnake(snake.head.x, snake.head.y, false)) {
+            console.log("self collision!");
+            return true;
+        }
+    }
+    return false;
+}
+
+function update() {
+    updateSnakeMovement();
+    if (hasEaten()) {
+        resetFood();
+        growSnake();
+    }
+    
+    if (hasDied()) {
+        console.log("Dead");
+        resetGame();
+    }
+}
+
+function fillTile(x, y, color="black") {
+    ctx.fillStyle = color;
+    ctx.fillRect(x * tileDim, y * tileDim, tileDim, tileDim);
+}
+
+function strokeTile(x, y, color="black") {
+    ctx.strokeStyle = color;
+    ctx.strokeRect(x * tileDim, y * tileDim, tileDim, tileDim);
+}
+
+function drawSnake() {
+    fillTile(snake.head.x, snake.head.y, "black");
+    for (let i = 0; i < snake.tail.length; i++) {
+        fillTile(snake.tail[i].x, snake.tail[i].y, snake.color);
+    }
+}
+
+function drawFood() {
+    fillTile(food.x, food.y, "green");
+}
+
+function drawBoard() {
+    for (let i = 0; i < boardDimY; i++) {
+        for (let j = 0; j < boardDimX; j++) {
+            strokeTile(j, i, "#d4d4d4");
+        }
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBoard();
+    drawFood();
+    drawSnake();
+}
+
+function main() {
+    onResize();
+    resetGame();
+
+    setInterval(() => {
+        update();
+        draw();
+    }, updateInterval);
+}
+
+function onResize(e) {
+    canvas.width = window.innerWidth - 20;
+    canvas.height = window.innerHeight - 20;
+    tileDim = Math.min(canvas.width / boardDimX, canvas.height / boardDimY);
+}
+window.addEventListener("resize", onResize);
+
+window.addEventListener("keydown", (e) => {
+    // TODO: these checks should be based on the position of the tail, not current dir
+    // currently we can go back on ourself by pressing multiple keys between updates
+    switch (e.key) {
+        case "ArrowLeft": 
+            if (snake.direction !== "e") {
+                snake.direction = "w"; 
+            }
+            break;
+        case "ArrowRight": 
+            if (snake.direction !== "w") {
+                snake.direction = "e"; 
+            }
+          break;
+        case "ArrowUp": 
+            if (snake.direction !== "s") {
+                snake.direction = "n"; 
+            }
+              break;
+        case "ArrowDown": 
+            if (snake.direction !== "n") {
+                snake.direction = "s"; 
+            }
+            break;
+    }
+});
+
+main();
+
+</script>
+
+</html>
